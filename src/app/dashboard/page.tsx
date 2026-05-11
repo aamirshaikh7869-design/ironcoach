@@ -276,7 +276,7 @@ function WeeklySchedule({
   weekStart: string;
 }) {
   const [modal, setModal] = useState<{ sess: DaySchedule["sessions"][0]; day: string; done: boolean } | null>(null);
-  const startDate = new Date(weekStart);
+  const startDate = new Date(weekStart + "T00:00:00");
 
   function getDateForDay(dayIdx: number) {
     const d = new Date(startDate);

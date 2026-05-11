@@ -971,9 +971,8 @@ export function getWeekActivities(
   activities: import("./types").StravaActivity[],
   week: TrainingWeek
 ): import("./types").WeekActuals {
-  const start = new Date(week.startDate);
-  const end = new Date(week.endDate);
-  end.setHours(23, 59, 59);
+  const start = new Date(week.startDate + "T00:00:00");
+  const end = new Date(week.endDate + "T23:59:59");
 
   const weekActivities = activities.filter((a) => {
     const d = new Date(a.start_date);
