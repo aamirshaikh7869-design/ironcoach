@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
 
     const activities = raw.map((a: any) => normalizeActivity(a, userId));
 
-    // Upsert all activities
+    // Upsert all activities — explicitly update all columns on conflict
     const { error } = await supabaseServer.from("activities").upsert(
       activities.map((a) => ({
         user_id: a.user_id,
@@ -45,7 +45,10 @@ export async function POST(req: NextRequest) {
         suffer_score: a.suffer_score,
         strava_url: a.strava_url,
       })),
-      { onConflict: "strava_activity_id" }
+      {
+        onConflict: "strava_activity_id",
+        ignoreDuplicates: false,  // always overwrite — picks up distance updates from Strava
+      }
     );
 
     if (error) {
