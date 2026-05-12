@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   TRAINING_PLAN,
   getCurrentWeek,
@@ -9,7 +9,7 @@ import {
   buildFitnessProfile,
   generateWeekSchedule,
 } from "@/lib/training-plan";
-import { StravaActivity, TrainingWeek, WeekActuals, FitnessProfile, DaySchedule } from "@/lib/types";
+import { StravaActivity, TrainingWeek, WeekActuals, FitnessProfile, DaySchedule, WeekOverride, ChatMessage, ToolEvent } from "@/lib/types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -675,62 +675,319 @@ function WorkoutDetailCard({ week }: { week: TrainingWeek }) {
   );
 }
 
-// ─── AI Analysis ──────────────────────────────────────────────────────────────
+// ─── Markdown renderer (simple, safe) ─────────────────────────────────────────
 
-function AnalysisPanel({ weekNumber }: { weekNumber: number }) {
-  const [text, setText] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [ran, setRan] = useState(false);
-
-  const runAnalysis = useCallback(async () => {
-    setLoading(true); setText(""); setRan(true);
-    const res = await fetch("/api/weekly-analysis", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ weekNumber }),
-    });
-    if (!res.ok || !res.body) { setText("Could not load analysis."); setLoading(false); return; }
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let done = false;
-    while (!done) {
-      const { value, done: d } = await reader.read();
-      if (value) setText((p) => p + decoder.decode(value));
-      done = d;
-    }
-    setLoading(false);
-  }, [weekNumber]);
-
-  if (!ran) return (
-    <div className="card p-6 text-center">
-      <p className="text-sm mb-4" style={{ color: "var(--muted)" }}>
-        AI analyzes your Strava data vs the planned week — specific feedback on pace zones, HR, what to adjust.
-      </p>
-      <button onClick={runAnalysis} className="px-5 py-2.5 rounded-xl text-sm font-semibold" style={{ background: "var(--orange)", color: "#fff" }}>
-        Analyze This Week
-      </button>
-    </div>
-  );
-
-  const rendered = text
+function renderMarkdown(text: string): string {
+  return text
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/^#{1,3} (.+)$/gm, "<h2>$1</h2>")
+    .replace(/\*(.+?)\*/g, "<em>$1</em>")
+    .replace(/^### (.+)$/gm, '<h3 style="font-size:0.85rem;font-weight:700;margin:1em 0 0.3em;color:var(--text)">$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2 style="font-size:0.9rem;font-weight:700;margin:1.2em 0 0.4em;color:var(--text)">$1</h2>')
+    .replace(/^• (.+)$/gm, "<li>$1</li>")
     .replace(/^- (.+)$/gm, "<li>$1</li>")
     .split("\n\n")
-    .map((p) => (p.startsWith("<h2>") || p.startsWith("<li>") ? p : `<p>${p}</p>`))
+    .map((p) => {
+      if (p.startsWith("<h2>") || p.startsWith("<h3>") || p.startsWith("<li>")) return p;
+      if (p.trim() === "") return "";
+      return `<p style="margin:0.4em 0">${p}</p>`;
+    })
     .join("\n");
+}
+
+// ─── Tool event card ───────────────────────────────────────────────────────────
+
+function ToolEventCard({ event }: { event: ToolEvent }) {
+  if (!event.ok) return null;
+  const d = event.display;
+  return (
+    <div className="my-2 rounded-xl px-4 py-3 text-xs"
+      style={{ background: "var(--orange-dim)", border: "1px solid var(--orange)30" }}>
+      <div className="font-semibold mb-1" style={{ color: "var(--orange)" }}>
+        Schedule updated — Week {d.week_number}
+      </div>
+      {d.changes?.map((c, i) => (
+        <div key={i} style={{ color: "var(--text)" }}>{c}</div>
+      ))}
+      {d.reason && (
+        <div className="mt-1.5 italic" style={{ color: "var(--muted)" }}>{d.reason}</div>
+      )}
+    </div>
+  );
+}
+
+// ─── Coach Chat ────────────────────────────────────────────────────────────────
+
+function CoachChat({ onScheduleChanged }: { onScheduleChanged: () => void }) {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [streaming, setStreaming] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Load history on mount
+  useEffect(() => {
+    fetch("/api/coach/chat")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.messages?.length) {
+          setMessages(
+            data.messages.map((m: { id: string; role: "user" | "assistant"; content: string; tool_events?: ToolEvent[] }) => ({
+              id: m.id,
+              role: m.role,
+              content: m.content,
+              toolEvents: m.tool_events || [],
+            }))
+          );
+        }
+        setHistoryLoaded(true);
+      })
+      .catch(() => setHistoryLoaded(true));
+  }, []);
+
+  // Auto-scroll on new content
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const sendMessage = useCallback(async () => {
+    const text = input.trim();
+    if (!text || streaming) return;
+
+    const userMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: text,
+    };
+
+    const allMessages = [...messages, userMsg];
+    setMessages(allMessages);
+    setInput("");
+    setStreaming(true);
+
+    const assistantId = crypto.randomUUID();
+    setMessages((m) => [
+      ...m,
+      { id: assistantId, role: "assistant", content: "", streaming: true, toolEvents: [] },
+    ]);
+
+    try {
+      const res = await fetch("/api/coach/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: allMessages.map((m) => ({ role: m.role, content: m.content })),
+        }),
+      });
+
+      if (!res.ok || !res.body) {
+        setMessages((m) =>
+          m.map((msg) =>
+            msg.id === assistantId
+              ? { ...msg, content: "Something went wrong. Please try again.", streaming: false }
+              : msg
+          )
+        );
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let scheduleChanged = false;
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+
+        // Process complete SSE events (split on \n\n)
+        let idx: number;
+        while ((idx = buf.indexOf("\n\n")) !== -1) {
+          const eventStr = buf.slice(0, idx);
+          buf = buf.slice(idx + 2);
+          if (!eventStr.startsWith("data: ")) continue;
+          const json = eventStr.slice(6);
+          let parsed: { t: string; v?: string; name?: string; ok?: boolean; msg?: string; display?: ToolEvent["display"] };
+          try { parsed = JSON.parse(json); } catch { continue; }
+
+          if (parsed.t === "text") {
+            setMessages((m) =>
+              m.map((msg) =>
+                msg.id === assistantId
+                  ? { ...msg, content: msg.content + (parsed.v || "") }
+                  : msg
+              )
+            );
+          } else if (parsed.t === "tool") {
+            const toolEvent: ToolEvent = {
+              t: "tool",
+              name: parsed.name || "",
+              ok: parsed.ok ?? false,
+              msg: parsed.msg || "",
+              display: parsed.display || {},
+            };
+            setMessages((m) =>
+              m.map((msg) =>
+                msg.id === assistantId
+                  ? { ...msg, toolEvents: [...(msg.toolEvents || []), toolEvent] }
+                  : msg
+              )
+            );
+            if (parsed.ok) scheduleChanged = true;
+          } else if (parsed.t === "end") {
+            setMessages((m) =>
+              m.map((msg) =>
+                msg.id === assistantId ? { ...msg, streaming: false } : msg
+              )
+            );
+          } else if (parsed.t === "error") {
+            setMessages((m) =>
+              m.map((msg) =>
+                msg.id === assistantId
+                  ? { ...msg, content: parsed.msg || "Error", streaming: false }
+                  : msg
+              )
+            );
+          }
+        }
+      }
+
+      if (scheduleChanged) onScheduleChanged();
+    } catch {
+      setMessages((m) =>
+        m.map((msg) =>
+          msg.id === assistantId
+            ? { ...msg, content: "Connection error. Try again.", streaming: false }
+            : msg
+        )
+      );
+    } finally {
+      setStreaming(false);
+    }
+  }, [input, messages, streaming, onScheduleChanged]);
+
+  const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
+  const suggestedPrompts = [
+    "How did I do this week vs the plan?",
+    "Was my last run in the right zone?",
+    "I'm feeling fatigued — should I back off?",
+    "What should I focus on this week?",
+  ];
 
   return (
-    <div className="card p-6">
-      <div className="flex items-center justify-between mb-4">
-        <span className="text-sm font-semibold" style={{ color: "var(--text)" }}>AI Coaching Analysis</span>
-        <button onClick={runAnalysis} disabled={loading} className="text-xs px-3 py-1.5 rounded-lg"
-          style={{ background: "var(--surface2)", color: "var(--muted)", border: "1px solid var(--border)" }}>
-          {loading ? "Analyzing..." : "Refresh"}
-        </button>
+    <div className="flex flex-col" style={{ height: "calc(100vh - 200px)", minHeight: 480 }}>
+      {/* Messages area */}
+      <div className="flex-1 overflow-y-auto space-y-4 pb-4" style={{ paddingRight: 2 }}>
+        {!historyLoaded && (
+          <div className="text-center py-8 text-sm" style={{ color: "var(--muted)" }}>
+            Loading chat history...
+          </div>
+        )}
+
+        {historyLoaded && messages.length === 0 && (
+          <div className="py-6 text-center">
+            <div className="text-2xl font-black mb-2" style={{ color: "var(--text)" }}>
+              Your AI Coach
+            </div>
+            <div className="text-sm mb-6 max-w-md mx-auto" style={{ color: "var(--muted)" }}>
+              PhD exercise science · 12 Ironman finishes · grounded in Friel, Dixon & Seiler.
+              Ask anything about your training, pace zones, recovery, or schedule.
+            </div>
+            <div className="flex flex-wrap gap-2 justify-center">
+              {suggestedPrompts.map((p) => (
+                <button
+                  key={p}
+                  onClick={() => { setInput(p); inputRef.current?.focus(); }}
+                  className="px-4 py-2 rounded-full text-xs font-medium"
+                  style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--muted)" }}>
+                  {p}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {messages.map((msg) => (
+          <div key={msg.id}>
+            {msg.role === "user" ? (
+              <div className="flex justify-end">
+                <div className="max-w-[80%] px-4 py-3 rounded-2xl rounded-tr-sm text-sm"
+                  style={{ background: "var(--orange)", color: "#fff" }}>
+                  {msg.content}
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-3 items-start">
+                <div className="w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center text-xs font-black mt-0.5"
+                  style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--orange)" }}>
+                  C
+                </div>
+                <div className="flex-1 min-w-0">
+                  {/* Tool events above text */}
+                  {(msg.toolEvents || []).map((ev, i) => (
+                    <ToolEventCard key={i} event={ev} />
+                  ))}
+                  <div
+                    className="text-sm leading-relaxed analysis-content"
+                    style={{ color: "var(--text)" }}
+                    dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
+                  />
+                  {msg.streaming && (
+                    <span className="inline-block w-2 h-4 ml-0.5 rounded-sm animate-pulse"
+                      style={{ background: "var(--orange)", verticalAlign: "text-bottom" }} />
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+        <div ref={bottomRef} />
       </div>
-      {loading && !text && <div className="text-sm" style={{ color: "var(--muted)" }}>Analyzing your training data...</div>}
-      <div className="analysis-content text-sm" dangerouslySetInnerHTML={{ __html: rendered }} />
+
+      {/* Input */}
+      <div className="pt-3" style={{ borderTop: "1px solid var(--border)" }}>
+        <div className="flex gap-2 items-end">
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKey}
+            placeholder="Ask your coach… (Enter to send, Shift+Enter for new line)"
+            rows={2}
+            disabled={streaming}
+            className="flex-1 rounded-xl px-4 py-3 text-sm resize-none"
+            style={{
+              background: "var(--surface2)",
+              border: "1px solid var(--border)",
+              color: "var(--text)",
+              outline: "none",
+              opacity: streaming ? 0.7 : 1,
+            }}
+          />
+          <button
+            onClick={sendMessage}
+            disabled={streaming || !input.trim()}
+            className="px-4 py-3 rounded-xl text-sm font-semibold flex-shrink-0"
+            style={{
+              background: streaming || !input.trim() ? "var(--surface2)" : "var(--orange)",
+              color: streaming || !input.trim() ? "var(--muted)" : "#fff",
+              border: "1px solid var(--border)",
+              transition: "all 0.15s",
+            }}>
+            {streaming ? "···" : "Send"}
+          </button>
+        </div>
+        <div className="mt-1.5 text-xs text-center" style={{ color: "var(--muted)" }}>
+          Your coach can adjust your training plan directly from this chat.
+        </div>
+      </div>
     </div>
   );
 }
@@ -898,8 +1155,9 @@ export default function Dashboard() {
   const [syncing, setSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [selectedWeek, setSelectedWeek] = useState<TrainingWeek | null>(null);
-  const [tab, setTab] = useState<"week" | "plan" | "strength" | "analysis">("week");
+  const [tab, setTab] = useState<"week" | "plan" | "strength" | "coach">("week");
   const [fitnessProfile, setFitnessProfile] = useState<FitnessProfile | null>(null);
+  const [weekOverrides, setWeekOverrides] = useState<Record<number, WeekOverride>>({});
 
   const currentWeek = getCurrentWeek();
   const daysLeft = getDaysUntilRace();
@@ -915,7 +1173,22 @@ export default function Dashboard() {
     }
   }, []);
 
-  useEffect(() => { loadActivities(); }, [loadActivities]);
+  const loadOverrides = useCallback(async () => {
+    try {
+      const r = await fetch("/api/coach/overrides");
+      if (r.ok) {
+        const { overrides } = await r.json();
+        const map: Record<number, WeekOverride> = {};
+        for (const ov of overrides || []) map[ov.week_number] = ov;
+        setWeekOverrides(map);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    loadActivities();
+    loadOverrides();
+  }, [loadActivities, loadOverrides]);
 
   const syncStrava = async () => {
     setSyncing(true);
@@ -925,11 +1198,19 @@ export default function Dashboard() {
     setSyncing(false);
   };
 
-  const weekActuals = displayWeek ? getWeekActivities(activities, displayWeek) : null;
-  const weekSchedule = displayWeek ? generateWeekSchedule(displayWeek) : null;
+  // Apply any coach-applied overrides to the week for display
+  const effectiveWeek = displayWeek ? {
+    ...displayWeek,
+    swimMeters: weekOverrides[displayWeek.weekNumber]?.swim_meters ?? displayWeek.swimMeters,
+    bikeMiles: weekOverrides[displayWeek.weekNumber]?.bike_miles ?? displayWeek.bikeMiles,
+    runMiles: weekOverrides[displayWeek.weekNumber]?.run_miles ?? displayWeek.runMiles,
+  } : displayWeek;
 
-  const totalCompliance = displayWeek && weekActuals && displayWeek.totalHours > 0
-    ? Math.min(Math.round(((weekActuals.totalMinutes / 60) / displayWeek.totalHours) * 100), 120) : 0;
+  const weekActuals = effectiveWeek ? getWeekActivities(activities, effectiveWeek) : null;
+  const weekSchedule = effectiveWeek ? generateWeekSchedule(effectiveWeek) : null;
+
+  const totalCompliance = effectiveWeek && weekActuals && effectiveWeek.totalHours > 0
+    ? Math.min(Math.round(((weekActuals.totalMinutes / 60) / effectiveWeek.totalHours) * 100), 120) : 0;
 
   const phaseColors: Record<string, string> = {
     base: "var(--cyan)", build: "var(--orange)", peak: "var(--red)",
@@ -976,39 +1257,44 @@ export default function Dashboard() {
 
         {/* Tabs */}
         <div className="flex gap-1 mb-5 p-1 rounded-xl w-fit" style={{ background: "var(--surface)" }}>
-          {(["week", "plan", "strength", "analysis"] as const).map((t) => (
+          {(["week", "plan", "strength", "coach"] as const).map((t) => (
             <button key={t} onClick={() => setTab(t)}
               className="px-4 py-2 rounded-lg text-sm font-medium capitalize transition-all"
               style={tab === t ? { background: "var(--surface2)", color: "var(--text)", border: "1px solid var(--border)" } : { color: "var(--muted)" }}>
-              {t === "week" ? "This Week" : t === "plan" ? "Full Plan" : t === "strength" ? "Strength" : "AI Analysis"}
+              {t === "week" ? "This Week" : t === "plan" ? "Full Plan" : t === "strength" ? "Strength" : "Coach"}
             </button>
           ))}
         </div>
 
         {/* ── THIS WEEK ── */}
-        {tab === "week" && displayWeek && weekActuals && weekSchedule && (
+        {tab === "week" && effectiveWeek && weekActuals && weekSchedule && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
             <div className="lg:col-span-2 space-y-5">
               {/* Weekly schedule calendar */}
-              <WeeklySchedule schedule={weekSchedule} activities={activities} weekStart={displayWeek.startDate} />
+              <WeeklySchedule schedule={weekSchedule} activities={activities} weekStart={effectiveWeek.startDate} />
 
               {/* Strength tracker */}
-              <StrengthTracker week={displayWeek} actuals={weekActuals} />
+              <StrengthTracker week={effectiveWeek} actuals={weekActuals} />
 
               {/* Volume bars */}
               <div className="card p-5">
                 <div className="flex items-start justify-between mb-4">
                   <div>
                     <div className="text-xs font-semibold mb-0.5" style={{ color: "var(--muted)" }}>
-                      {new Date(displayWeek.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })} –{" "}
-                      {new Date(displayWeek.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                      {new Date(effectiveWeek.startDate + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} –{" "}
+                      {new Date(effectiveWeek.endDate + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                     </div>
                     <div className="font-bold text-lg" style={{ color: "var(--text)" }}>
-                      Week {displayWeek.weekNumber} — {displayWeek.phase.charAt(0).toUpperCase() + displayWeek.phase.slice(1)} phase
+                      Week {effectiveWeek.weekNumber} — {effectiveWeek.phase.charAt(0).toUpperCase() + effectiveWeek.phase.slice(1)} phase
                     </div>
-                    {displayWeek.isResidencyConstrained && (
-                      <span className="badge mt-1" style={{ background: "#D2992220", color: "#D29922" }}>Residency week</span>
-                    )}
+                    <div className="flex gap-2 mt-1 flex-wrap">
+                      {effectiveWeek.isResidencyConstrained && (
+                        <span className="badge" style={{ background: "#D2992220", color: "#D29922" }}>Residency week</span>
+                      )}
+                      {weekOverrides[effectiveWeek.weekNumber] && (
+                        <span className="badge" style={{ background: "var(--orange-dim)", color: "var(--orange)" }}>Coach adjusted</span>
+                      )}
+                    </div>
                   </div>
                   <div className="text-right">
                     <div className="text-2xl font-black"
@@ -1019,15 +1305,15 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                <SportBar label="Swim" icon={<SwimIcon />} actual={weekActuals.swimMeters} target={displayWeek.swimMeters} unit="m" color="var(--cyan)" />
-                <SportBar label="Bike" icon={<BikeIcon />} actual={weekActuals.bikeMiles} target={displayWeek.bikeMiles} unit="mi" color="var(--orange)" />
-                <SportBar label="Run"  icon={<RunIcon />}  actual={weekActuals.runMiles}  target={displayWeek.runMiles}  unit="mi" color="var(--green)" />
+                <SportBar label="Swim" icon={<SwimIcon />} actual={weekActuals.swimMeters} target={effectiveWeek.swimMeters} unit="m" color="var(--cyan)" />
+                <SportBar label="Bike" icon={<BikeIcon />} actual={weekActuals.bikeMiles} target={effectiveWeek.bikeMiles} unit="mi" color="var(--orange)" />
+                <SportBar label="Run"  icon={<RunIcon />}  actual={weekActuals.runMiles}  target={effectiveWeek.runMiles}  unit="mi" color="var(--green)" />
 
                 <div className="mt-3 pt-4 flex justify-between text-sm" style={{ borderTop: "1px solid var(--border)" }}>
                   <span style={{ color: "var(--muted)" }}>Total training time</span>
                   <span style={{ color: "var(--text)", fontWeight: 600 }}>
                     {(weekActuals.totalMinutes / 60).toFixed(1)}h
-                    <span style={{ color: "var(--muted)", fontWeight: 400 }}> / {displayWeek.totalHours}h target</span>
+                    <span style={{ color: "var(--muted)", fontWeight: 400 }}> / {effectiveWeek.totalHours}h target</span>
                   </span>
                 </div>
               </div>
@@ -1036,9 +1322,9 @@ export default function Dashboard() {
               <div className="card p-5">
                 <div className="text-xs font-semibold mb-3" style={{ color: "var(--muted)" }}>WEEKLY FOCUS</div>
                 <div className="flex flex-wrap gap-2 mb-3">
-                  {displayWeek.focusAreas.map((f) => <span key={f} className="badge badge-cyan">{f}</span>)}
+                  {effectiveWeek.focusAreas.map((f) => <span key={f} className="badge badge-cyan">{f}</span>)}
                 </div>
-                <div className="text-sm italic leading-relaxed" style={{ color: "var(--muted)" }}>{displayWeek.notes}</div>
+                <div className="text-sm italic leading-relaxed" style={{ color: "var(--muted)" }}>{effectiveWeek.notes}</div>
               </div>
 
             </div>
@@ -1051,7 +1337,7 @@ export default function Dashboard() {
                 <div className="grid grid-cols-4 gap-1">
                   {TRAINING_PLAN.map((w) => {
                     const isCurrent = w.weekNumber === currentWeek?.weekNumber;
-                    const isSelected = w.weekNumber === displayWeek.weekNumber;
+                    const isSelected = w.weekNumber === effectiveWeek.weekNumber;
                     const color = phaseColors[w.phase];
                     return (
                       <button key={w.weekNumber} onClick={() => setSelectedWeek(w)}
@@ -1094,6 +1380,10 @@ export default function Dashboard() {
               const color = phaseColors[w.phase];
               const wa = getWeekActivities(activities, w);
               const hasData = wa.totalMinutes > 0;
+              const ov = weekOverrides[w.weekNumber];
+              const swimTarget = ov?.swim_meters ?? w.swimMeters;
+              const bikeTarget = ov?.bike_miles ?? w.bikeMiles;
+              const runTarget = ov?.run_miles ?? w.runMiles;
               return (
                 <button key={w.weekNumber} onClick={() => { setSelectedWeek(w); setTab("week"); }}
                   className="w-full card card-hover p-3 text-left grid grid-cols-12 gap-2 items-center"
@@ -1102,19 +1392,20 @@ export default function Dashboard() {
                     <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold" style={{ background: color + "20", color }}>{w.weekNumber}</div>
                   </div>
                   <div className="col-span-2 text-xs" style={{ color: "var(--muted)" }}>
-                    {new Date(w.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    {new Date(w.startDate + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    {ov && <span className="ml-1" style={{ color: "var(--orange)" }}>✎</span>}
                   </div>
                   <div className="col-span-2">
                     <span className="badge text-xs" style={{ background: color + "20", color }}>{w.phase}{w.isResidencyConstrained ? " ⚕" : ""}</span>
                   </div>
                   <div className="col-span-2 text-xs" style={{ color: hasData ? "var(--cyan)" : "var(--muted)" }}>
-                    {hasData ? `${Math.round(wa.swimMeters)}m` : `${w.swimMeters}m`}
+                    {hasData ? `${Math.round(wa.swimMeters)}m` : `${swimTarget}m`}
                   </div>
                   <div className="col-span-2 text-xs" style={{ color: hasData ? "var(--orange)" : "var(--muted)" }}>
-                    {hasData ? `${wa.bikeMiles.toFixed(1)}mi` : `${w.bikeMiles}mi`}
+                    {hasData ? `${wa.bikeMiles.toFixed(1)}mi` : `${bikeTarget}mi`}
                   </div>
                   <div className="col-span-2 text-xs" style={{ color: hasData ? "var(--green)" : "var(--muted)" }}>
-                    {hasData ? `${wa.runMiles.toFixed(1)}mi` : `${w.runMiles}mi`}
+                    {hasData ? `${wa.runMiles.toFixed(1)}mi` : `${runTarget}mi`}
                   </div>
                   <div className="col-span-1 text-xs font-semibold" style={{ color: "var(--text)" }}>{w.totalHours}h</div>
                 </button>
@@ -1124,18 +1415,12 @@ export default function Dashboard() {
         )}
 
         {/* ── STRENGTH ── */}
-        {tab === "strength" && displayWeek && <StrengthFullPage week={displayWeek} />}
+        {tab === "strength" && effectiveWeek && <StrengthFullPage week={effectiveWeek} />}
 
-        {/* ── AI ANALYSIS ── */}
-        {tab === "analysis" && displayWeek && (
-          <div className="max-w-2xl space-y-5">
-            <div className="flex items-center gap-3">
-              <span className="text-sm" style={{ color: "var(--muted)" }}>Analyzing:</span>
-              <span className="badge" style={{ background: phaseColors[displayWeek.phase] + "20", color: phaseColors[displayWeek.phase] }}>
-                Week {displayWeek.weekNumber}
-              </span>
-            </div>
-            <AnalysisPanel weekNumber={displayWeek.weekNumber} />
+        {/* ── COACH CHAT ── */}
+        {tab === "coach" && (
+          <div className="max-w-2xl">
+            <CoachChat onScheduleChanged={loadOverrides} />
           </div>
         )}
       </main>

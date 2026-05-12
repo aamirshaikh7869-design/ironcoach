@@ -128,6 +128,35 @@ export interface WeekActuals {
   runMiles: number;
 }
 
+export interface WeekOverride {
+  week_number: number;
+  swim_meters?: number;
+  bike_miles?: number;
+  run_miles?: number;
+  reason?: string;
+}
+
+export interface ToolEvent {
+  t: "tool";
+  name: string;
+  ok: boolean;
+  msg: string;
+  display: {
+    week_number?: number;
+    changes?: string[];
+    reason?: string;
+  };
+}
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  toolEvents?: ToolEvent[];
+  streaming?: boolean;
+  created_at?: string;
+}
+
 export interface FitnessProfile {
   avgRunPacePerMile: number | null;
   avgRunHR: number | null;
