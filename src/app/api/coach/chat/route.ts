@@ -56,7 +56,7 @@ const TOOLS: Anthropic.Tool[] = [
         day: {
           type: "string",
           enum: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-          description: "Day of the week to update",
+          description: "Day of the week to update. Weeks run Monday–Sunday: Mon = startDate of the week, Sun = startDate + 6. Check the plan table for the actual dates before choosing.",
         },
         sessions: {
           type: "array",
@@ -151,6 +151,15 @@ function buildSystemPrompt(
     return `  ${dateStr}  ${a.type.padEnd(12)}  ${dist.padEnd(8)}  ${Math.round(mins)}min  ${pace}${hr}${watts}`;
   });
 
+  // Helper: given a week's startDate (Monday), return the actual date for each day label
+  function weekDayDate(startDate: string, day: string): string {
+    const days = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+    const idx = days.indexOf(day);
+    const d = new Date(startDate + "T00:00:00");
+    d.setDate(d.getDate() + idx);
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  }
+
   const planLines = TRAINING_PLAN.map((w) => {
     const ov = weekOverrides[w.weekNumber];
     const swim = ov?.swim_meters ?? w.swimMeters;
@@ -158,7 +167,10 @@ function buildSystemPrompt(
     const run = ov?.run_miles ?? w.runMiles;
     const tag = ov ? " [COACH-ADJUSTED]" : "";
     const residency = w.isResidencyConstrained ? " ⚕" : "";
-    return `  Wk ${String(w.weekNumber).padStart(2)}  ${w.startDate}  ${w.phase.padEnd(5)}${residency}  Swim ${swim}m  Bike ${bike}mi  Run ${run}mi  ${w.totalHours}h${tag}`;
+    // Show Mon–Sun date range explicitly so the coach knows day labels map to real dates
+    const monDate = weekDayDate(w.startDate, "Mon");
+    const sunDate = weekDayDate(w.startDate, "Sun");
+    return `  Wk ${String(w.weekNumber).padStart(2)}  Mon ${monDate} – Sun ${sunDate}  ${w.phase.padEnd(5)}${residency}  Swim ${swim}m  Bike ${bike}mi  Run ${run}mi  ${w.totalHours}h${tag}`;
   });
 
   const dayOverrideLines: string[] = [];
@@ -204,6 +216,11 @@ TRAINING ZONES
 
 RECENT ACTIVITIES (last 30 days):
 ${activityLines.length > 0 ? activityLines.join("\n") : "  (no activities logged)"}
+
+WEEK STRUCTURE — CRITICAL:
+• Every training week runs Monday → Sunday. "Mon" is always the first day of the week (= startDate). "Sun" is always the last day (= startDate + 6 days).
+• The plan table below shows the exact Mon–Sun date range for each week. Use these dates when reasoning about which day a session falls on.
+• When calling update_day_schedule, use the day label ("Mon"/"Tue"/…/"Sun") not a date — but double-check it matches the correct date for the week before committing.
 
 TRAINING PLAN (current state — modify volume with update_week_targets, modify daily sessions with update_day_schedule):
 ${planLines.join("\n")}
