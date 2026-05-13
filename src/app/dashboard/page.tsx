@@ -9,7 +9,7 @@ import {
   buildFitnessProfile,
   generateWeekSchedule,
 } from "@/lib/training-plan";
-import { StravaActivity, TrainingWeek, WeekActuals, FitnessProfile, DaySchedule, WeekOverride, ChatMessage, ToolEvent } from "@/lib/types";
+import { StravaActivity, TrainingWeek, WeekActuals, FitnessProfile, DaySchedule, WeekOverride, DayScheduleOverride, ChatMessage, ToolEvent } from "@/lib/types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -699,15 +699,19 @@ function renderMarkdown(text: string): string {
 function ToolEventCard({ event }: { event: ToolEvent }) {
   if (!event.ok) return null;
   const d = event.display;
+  const isDay = event.name === "update_day_schedule";
   return (
     <div className="my-2 rounded-xl px-4 py-3 text-xs"
       style={{ background: "var(--orange-dim)", border: "1px solid var(--orange)30" }}>
       <div className="font-semibold mb-1" style={{ color: "var(--orange)" }}>
-        Schedule updated — Week {d.week_number}
+        {isDay
+          ? `Schedule updated — Week ${d.week_number} ${d.day}`
+          : `Volume updated — Week ${d.week_number}`}
       </div>
-      {d.changes?.map((c, i) => (
-        <div key={i} style={{ color: "var(--text)" }}>{c}</div>
-      ))}
+      {isDay
+        ? d.sessions?.map((s, i) => <div key={i} style={{ color: "var(--text)" }}>· {s}</div>)
+        : d.changes?.map((c, i) => <div key={i} style={{ color: "var(--text)" }}>{c}</div>)
+      }
       {d.reason && (
         <div className="mt-1.5 italic" style={{ color: "var(--muted)" }}>{d.reason}</div>
       )}
@@ -1158,6 +1162,7 @@ export default function Dashboard() {
   const [tab, setTab] = useState<"week" | "plan" | "strength" | "coach">("week");
   const [fitnessProfile, setFitnessProfile] = useState<FitnessProfile | null>(null);
   const [weekOverrides, setWeekOverrides] = useState<Record<number, WeekOverride>>({});
+  const [dayScheduleOverrides, setDayScheduleOverrides] = useState<DayScheduleOverride[]>([]);
 
   const currentWeek = getCurrentWeek();
   const daysLeft = getDaysUntilRace();
@@ -1175,12 +1180,19 @@ export default function Dashboard() {
 
   const loadOverrides = useCallback(async () => {
     try {
-      const r = await fetch("/api/coach/overrides");
-      if (r.ok) {
-        const { overrides } = await r.json();
+      const [weekRes, dayRes] = await Promise.all([
+        fetch("/api/coach/overrides"),
+        fetch("/api/coach/day-overrides"),
+      ]);
+      if (weekRes.ok) {
+        const { overrides } = await weekRes.json();
         const map: Record<number, WeekOverride> = {};
         for (const ov of overrides || []) map[ov.week_number] = ov;
         setWeekOverrides(map);
+      }
+      if (dayRes.ok) {
+        const { overrides } = await dayRes.json();
+        setDayScheduleOverrides(overrides || []);
       }
     } catch {}
   }, []);
@@ -1207,7 +1219,19 @@ export default function Dashboard() {
   } : displayWeek;
 
   const weekActuals = effectiveWeek ? getWeekActivities(activities, effectiveWeek) : null;
-  const weekSchedule = effectiveWeek ? generateWeekSchedule(effectiveWeek) : null;
+
+  // Merge coach day overrides into the generated schedule
+  const weekSchedule = effectiveWeek ? (() => {
+    const base = generateWeekSchedule(effectiveWeek);
+    const overridesForWeek = dayScheduleOverrides.filter(
+      (o) => o.week_number === effectiveWeek.weekNumber
+    );
+    if (overridesForWeek.length === 0) return base;
+    return base.map((dayPlan) => {
+      const override = overridesForWeek.find((o) => o.day === dayPlan.day);
+      return override ? { ...dayPlan, sessions: override.sessions } : dayPlan;
+    });
+  })() : null;
 
   const totalCompliance = effectiveWeek && weekActuals && effectiveWeek.totalHours > 0
     ? Math.min(Math.round(((weekActuals.totalMinutes / 60) / effectiveWeek.totalHours) * 100), 120) : 0;

@@ -42,6 +42,69 @@ const TOOLS: Anthropic.Tool[] = [
       required: ["week_number", "reason"],
     },
   },
+  {
+    name: "update_day_schedule",
+    description:
+      "Replace the session plan for a specific day within a training week. Use this when the athlete wants to swap workouts, move sessions between days, add or remove a session, or restructure a day. This directly updates the weekly schedule dashboard. Replaces ALL sessions for the specified day — include every session you want that day (not just the change). Use update_week_targets separately if volume totals also need updating.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        week_number: {
+          type: "number",
+          description: "Week number (1–20)",
+        },
+        day: {
+          type: "string",
+          enum: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+          description: "Day of the week to update",
+        },
+        sessions: {
+          type: "array",
+          description: "Full list of sessions for this day (replaces existing). Use an array with a single rest session to make it a rest day.",
+          items: {
+            type: "object",
+            properties: {
+              sport: {
+                type: "string",
+                enum: ["swim", "bike", "run", "strength", "brick", "rest"],
+              },
+              label: {
+                type: "string",
+                description: "Short session name (e.g. 'Easy road ride', 'Swim drills + laps')",
+              },
+              duration: {
+                type: "number",
+                description: "Duration in minutes",
+              },
+              distance: {
+                type: "number",
+                description: "Distance (optional)",
+              },
+              distanceUnit: {
+                type: "string",
+                enum: ["mi", "m"],
+                description: "Unit for distance",
+              },
+              isKeyWorkout: {
+                type: "boolean",
+                description: "Flag as key/priority workout for the week",
+              },
+              note: {
+                type: "string",
+                description: "Coaching note shown on the card (e.g. '7am · Z2 · keep HR under 140')",
+              },
+            },
+            required: ["sport", "label", "duration"],
+          },
+        },
+        reason: {
+          type: "string",
+          description: "Brief reason shown in the UI (e.g. 'Moved swim to Thursday to allow upper body recovery')",
+        },
+      },
+      required: ["week_number", "day", "sessions", "reason"],
+    },
+  },
 ];
 
 // ─── System prompt ────────────────────────────────────────────────────────────
@@ -49,7 +112,8 @@ const TOOLS: Anthropic.Tool[] = [
 function buildSystemPrompt(
   athleteName: string,
   activities: StravaActivity[],
-  weekOverrides: Record<number, { swim_meters?: number; bike_miles?: number; run_miles?: number; reason?: string }>
+  weekOverrides: Record<number, { swim_meters?: number; bike_miles?: number; run_miles?: number; reason?: string }>,
+  dayOverrides: Record<string, { sessions: Record<string, unknown>[]; reason?: string }>
 ): string {
   const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
   const recent = activities
@@ -97,6 +161,16 @@ function buildSystemPrompt(
     return `  Wk ${String(w.weekNumber).padStart(2)}  ${w.startDate}  ${w.phase.padEnd(5)}${residency}  Swim ${swim}m  Bike ${bike}mi  Run ${run}mi  ${w.totalHours}h${tag}`;
   });
 
+  const dayOverrideLines: string[] = [];
+  for (const key of Object.keys(dayOverrides).sort()) {
+    const ov = dayOverrides[key];
+    const sessionSummary = ov.sessions.map((s) => {
+      const dist = s.distance ? ` ${s.distance}${s.distanceUnit ?? ""}` : "";
+      return `${s.sport}:${s.label}${dist} (${s.duration}min)`;
+    }).join(", ");
+    dayOverrideLines.push(`  ${key}: ${sessionSummary}${ov.reason ? ` — ${ov.reason}` : ""} [COACH-ADJUSTED]`);
+  }
+
   return `You are ${athleteName}'s personal triathlon coach — expert-level credentials:
 • PhD in exercise physiology (dissertation on lactate dynamics in endurance sport)
 • 12 Ironman finishes, 30+ 70.3 finishes as an age-grouper
@@ -131,12 +205,16 @@ TRAINING ZONES
 RECENT ACTIVITIES (last 30 days):
 ${activityLines.length > 0 ? activityLines.join("\n") : "  (no activities logged)"}
 
-TRAINING PLAN (current state — you can modify targets with the update_week_targets tool):
+TRAINING PLAN (current state — modify volume with update_week_targets, modify daily sessions with update_day_schedule):
 ${planLines.join("\n")}
+${dayOverrideLines.length > 0 ? `\nCOACH-ADJUSTED DAY SCHEDULES:\n${dayOverrideLines.join("\n")}` : ""}
 
 BEHAVIOR RULES:
 1. Be direct and specific. Quote actual numbers from their activity data.
 2. When you recommend a schedule change, USE THE TOOL to apply it immediately. Don't just suggest — commit.
+   • Use update_week_targets to change swim/bike/run volume totals.
+   • Use update_day_schedule to change what sessions appear on a specific day (move workouts, add rest days, restructure the week).
+   • Use both tools together when restructuring requires both a volume change and day-level session changes.
 3. Cite specific science when it adds value (e.g., "Seiler's research shows Z2 training drives ~80% of mitochondrial adaptation").
 4. Flag zone violations with the consequence ("Running 9:10/mi on a Z2 day accumulates lactate without building aerobic base — you're getting the fatigue without the adaptation").
 5. Keep responses concise. Bullet points > paragraphs. Numbers > adjectives.`;
@@ -190,6 +268,51 @@ async function executeTool(
       },
     };
   }
+  if (name === "update_day_schedule") {
+    const weekNum = input.week_number as number;
+    const day = input.day as string;
+    const sessions = input.sessions as object[];
+
+    if (!weekNum || !day || !Array.isArray(sessions)) {
+      return { ok: false, msg: "Missing required fields", display: {} };
+    }
+
+    const { error } = await supabaseServer
+      .from("day_schedule_overrides")
+      .upsert(
+        {
+          user_id: userId,
+          week_number: weekNum,
+          day,
+          sessions,
+          reason: input.reason,
+          created_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,week_number,day" }
+      );
+
+    if (error) {
+      return { ok: false, msg: `DB error: ${error.message}`, display: {} };
+    }
+
+    const sessionLines = (sessions as Record<string, unknown>[]).map((s) => {
+      const dist = s.distance ? ` · ${s.distance}${s.distanceUnit ?? ""}` : "";
+      const dur = s.duration ? ` · ${s.duration}min` : "";
+      return `${s.label}${dist}${dur}`;
+    });
+
+    return {
+      ok: true,
+      msg: `Week ${weekNum} ${day} schedule updated`,
+      display: {
+        week_number: weekNum,
+        day,
+        sessions: sessionLines,
+        reason: input.reason as string,
+      },
+    };
+  }
+
   return { ok: false, msg: "Unknown tool", display: {} };
 }
 
@@ -226,7 +349,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Load context from DB
-  const [{ data: user }, { data: activities }, { data: overrideRows }] = await Promise.all([
+  const [{ data: user }, { data: activities }, { data: overrideRows }, { data: dayOverrideRows }] = await Promise.all([
     supabaseServer.from("users").select("name").eq("id", userId).single(),
     supabaseServer
       .from("activities")
@@ -238,6 +361,10 @@ export async function POST(req: NextRequest) {
       .from("week_overrides")
       .select("*")
       .eq("user_id", userId),
+    supabaseServer
+      .from("day_schedule_overrides")
+      .select("*")
+      .eq("user_id", userId),
   ]);
 
   const athleteName = user?.name?.split(" ")[0] || "Athlete";
@@ -245,8 +372,12 @@ export async function POST(req: NextRequest) {
   for (const row of overrideRows || []) {
     weekOverrides[row.week_number] = row;
   }
+  const dayOverrides: Record<string, { sessions: Record<string, unknown>[]; reason?: string }> = {};
+  for (const row of dayOverrideRows || []) {
+    dayOverrides[`Wk${row.week_number}-${row.day}`] = { sessions: row.sessions, reason: row.reason };
+  }
 
-  const systemPrompt = buildSystemPrompt(athleteName, (activities || []) as StravaActivity[], weekOverrides);
+  const systemPrompt = buildSystemPrompt(athleteName, (activities || []) as StravaActivity[], weekOverrides, dayOverrides);
 
   // Save the user's latest message
   const lastUserMsg = messages[messages.length - 1];

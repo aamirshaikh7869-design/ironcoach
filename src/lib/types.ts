@@ -136,6 +136,13 @@ export interface WeekOverride {
   reason?: string;
 }
 
+export interface DayScheduleOverride {
+  week_number: number;
+  day: "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat" | "Sun";
+  sessions: ScheduledSession[];
+  reason?: string;
+}
+
 export interface ToolEvent {
   t: "tool";
   name: string;
@@ -143,7 +150,9 @@ export interface ToolEvent {
   msg: string;
   display: {
     week_number?: number;
+    day?: string;
     changes?: string[];
+    sessions?: string[];
     reason?: string;
   };
 }
