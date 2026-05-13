@@ -102,40 +102,40 @@ export const TRAINING_PLAN: TrainingWeek[] = [
     endDate: "2026-05-17",
     phase: "base",
     isResidencyConstrained: false,
-    swimMinutes: 75,
-    bikeMinutes: 105,
-    runMinutes: 80,
-    strengthMinutes: 90,
-    swimMeters: 1600,
-    bikeMiles: 22,
-    runMiles: 9,
-    totalHours: 5.8,
-    focusAreas: ["Swim continuity", "Bike cadence 85–95rpm", "Run form"],
+    swimMinutes: 90,
+    bikeMinutes: 160,
+    runMinutes: 65,
+    strengthMinutes: 80,
+    swimMeters: 2600,
+    bikeMiles: 36,
+    runMiles: 4,
+    totalHours: 6.5,
+    focusAreas: ["HR-gated run/walk (140→130bpm)", "Z2 swim intervals", "Double-session aerobic base"],
     keyWorkouts: [
       {
         sport: "swim",
-        label: "Continuous Swim",
-        structure: "300yd warm-up → 4×200yd with 30sec rest → 200yd cool-down (total ~1400yd)",
-        zone: "Z2 — controlled breathing, 2 strokes per breath minimum",
-        targetPacePer100yd: "2:40–3:00",
+        label: "Z2 Interval Set",
+        structure: "200m warmup → 4×100m Z2 with 20sec rest → 200m cooldown (total 800m). Two sessions per week.",
+        zone: "Z2 — full sentences possible, controlled breathing",
+        targetPacePer100yd: "2:30–3:00",
       },
       {
         sport: "bike",
-        label: "Cadence Focus Ride",
-        structure: "60min with 3×10min at 85–95rpm (use a trainer or flat road). Focus on smooth pedal stroke, not power.",
-        zone: "Z2 with cadence awareness",
-        targetSpeed: "14–17mph",
+        label: "Z1–Z2 Base Rides",
+        structure: "Easy road ride 23min (morning) + trainer easy spin 45min + Saturday road ride 90min. All strictly aerobic.",
+        zone: "Z1–Z2 — HR under 140bpm the entire time",
+        targetSpeed: "12–15mph",
       },
       {
         sport: "run",
-        label: "Strides Run",
-        structure: "3mi easy → 4×20-sec strides at mile effort with full recovery walk → 1mi easy cool-down",
-        zone: "Z2 base + Z5 strides (short bursts only)",
-        targetPace: "9:15–10:15/mi easy portion",
+        label: "HR-Gated Run/Walk",
+        structure: "Walk immediately when HR hits 140bpm. Resume running only when HR drops to 130bpm. No exceptions.",
+        zone: "Z1–Z2 — pace is irrelevant, HR discipline is the workout",
+        targetPace: "HR 130–140bpm zone",
       },
     ],
     strengthWork: BASE_STRENGTH,
-    notes: "Introduce cadence tracking on the bike — aim for 85–95rpm at all times. High cadence = less quad fatigue on the run. Strides activate fast-twitch fibers without building fatigue.",
+    notes: "First week of AM/PM double-session days. The run/walk HR protocol (walk at 140, resume at 130) is Maffetone aerobic conditioning — it feels embarrassingly slow and that's exactly right. Aerobic base is built in Z1-Z2 only. You can't buy your way out of this foundation.",
   },
   {
     weekNumber: 3,
@@ -143,41 +143,40 @@ export const TRAINING_PLAN: TrainingWeek[] = [
     endDate: "2026-05-24",
     phase: "base",
     isResidencyConstrained: false,
-    swimMinutes: 90,
-    bikeMinutes: 120,
-    runMinutes: 90,
-    strengthMinutes: 90,
-    swimMeters: 2000,
-    bikeMiles: 28,
-    runMiles: 10,
-    totalHours: 6.5,
-    focusAreas: ["First brick workout", "Long run build", "Swim breathing rhythm"],
+    swimMinutes: 110,
+    bikeMinutes: 240,
+    runMinutes: 150,
+    strengthMinutes: 80,
+    swimMeters: 2800,
+    bikeMiles: 55,
+    runMiles: 9,
+    totalHours: 9.7,
+    focusAreas: ["Volume build +10%", "Double run days Z1-Z2", "Saturday long bike 2hrs"],
     keyWorkouts: [
       {
         sport: "swim",
-        label: "Threshold Swim",
-        structure: "400yd warm-up → 4×100yd at moderate-hard effort with 20sec rest → 4×50yd easy → 200yd cool-down",
-        zone: "Z3 for the 100yd reps — controlled discomfort",
-        targetPacePer100yd: "2:20–2:40 on the fast reps",
+        label: "Z2 Volume Build",
+        structure: "200m warmup → 5–6×100m Z2 with 20sec rest → 200m cooldown. Three swim sessions this week.",
+        zone: "Z2 — aerobic, not race pace",
+        targetPacePer100yd: "2:25–2:50",
       },
       {
         sport: "bike",
-        label: "First Brick",
-        structure: "25mi moderate ride → immediately rack bike → 20min run at race effort",
-        zone: "Z2–Z3 bike, Z3 run. Expect legs to feel like cement for the first 5–10min of the run — this is adaptation.",
-        targetSpeed: "15–17mph bike",
-        targetPace: "10:00–11:00/mi run-off-bike",
+        label: "Saturday Long Ride — 2hrs",
+        structure: "2hr road ride Z1-Z2. This is your longest ride yet — pace conservatively, fuel every 30min.",
+        zone: "Z1–Z2 — if you can't hold a conversation, slow down",
+        targetSpeed: "14–16mph",
       },
       {
         sport: "run",
-        label: "Long Run",
-        structure: "8mi continuous at easy Z2 pace. Run-walk is fine if needed.",
-        zone: "Z2 — conversational, don't chase pace",
-        targetPace: "9:30–10:30/mi",
+        label: "Double Run Days",
+        structure: "Run/walk 3mi on three separate days (Mon, Tue PM, Wed PM). Walk at 140bpm, resume at 130bpm.",
+        zone: "Z1–Z2 — HR protocol same as last week",
+        targetPace: "HR 130–140bpm",
       },
     ],
     strengthWork: BASE_STRENGTH,
-    notes: "Your first brick workout this week. The heavy, numb feeling in your legs when you start the run after the bike is exactly what you're training to overcome. It gets better every week.",
+    notes: "Biggest aerobic week yet. Volume jumps ~50% from week 2 — this is intentional pre-residency loading. The 2hr Saturday ride is your key session: go slow, fuel well, and practice drinking while riding. Three run sessions builds aerobic economy without injury risk because all are Z1-Z2.",
   },
   {
     weekNumber: 4,
@@ -185,45 +184,45 @@ export const TRAINING_PLAN: TrainingWeek[] = [
     endDate: "2026-05-31",
     phase: "base",
     isResidencyConstrained: false,
-    swimMinutes: 60,
-    bikeMinutes: 90,
-    runMinutes: 60,
-    strengthMinutes: 45,
-    swimMeters: 1200,
-    bikeMiles: 20,
-    runMiles: 6,
-    totalHours: 4.25,
-    focusAreas: ["Full recovery", "Mobility work", "Sleep priority"],
+    swimMinutes: 90,
+    bikeMinutes: 120,
+    runMinutes: 135,
+    strengthMinutes: 70,
+    swimMeters: 2900,
+    bikeMiles: 25,
+    runMiles: 8,
+    totalHours: 7.0,
+    focusAreas: ["Active recovery", "Maintain frequency, drop intensity", "Sleep priority"],
     keyWorkouts: [
       {
         sport: "swim",
-        label: "Easy Recovery Swim",
-        structure: "600yd easy, any stroke. Focus on feel, no structure.",
-        zone: "Z1 — this should feel like a spa, not training",
-        targetPacePer100yd: "no target",
+        label: "Easy Recovery Swims",
+        structure: "Four short easy sessions (700–800m each). No intervals — just steady Z1-Z2 laps. Technique focus.",
+        zone: "Z1–Z2 — should feel like active recovery, not training",
+        targetPacePer100yd: "No target — just move through the water",
       },
       {
         sport: "bike",
-        label: "Recovery Spin",
-        structure: "45–60min very easy spinning, flat ground or trainer",
-        zone: "Z1 — legs turn over, nothing more",
-        targetSpeed: "13–15mph",
+        label: "Easy Spin + Short Road",
+        structure: "Trainer easy spin 45min (Z1 only) + Saturday easy road ride 75min. No intensity.",
+        zone: "Z1 — legs turning over, nothing more",
+        targetSpeed: "12–14mph",
       },
       {
         sport: "run",
-        label: "Easy Shake-Out",
-        structure: "4–5mi easy",
-        zone: "Z1–Z2",
-        targetPace: "10:00–11:00/mi",
+        label: "Short Run/Walk",
+        structure: "2mi max per session, walk at 140bpm. Three sessions spread through the week.",
+        zone: "Z1–Z2 — keep it easy",
+        targetPace: "HR under 140bpm",
       },
     ],
-    strengthWork: { ...BASE_STRENGTH, frequency: 1, label: "Foundation (Recovery Volume)", duration: 45 },
-    notes: "RECOVERY WEEK — non-negotiable. Volume drops 35%. Skipping recovery weeks is the most common training mistake. Fitness is built during rest, not during hard sessions. Sleep 8hrs+.",
+    strengthWork: { ...BASE_STRENGTH, frequency: 2, label: "Foundation (Reduced Volume)", duration: 35 },
+    notes: "RECOVERY WEEK — volume drops ~25% from week 3. The swim frequency stays high (4 sessions) to maintain water feel, but intensity is gone. Seiler's research: recovery weeks are when adaptation happens. Sleep 8hrs minimum. Don't add sessions.",
   },
 
   // ═══════════════════════════════════════════════════════════════
-  // PHASE 2: BUILD (Weeks 5–7, Jun 1–21)
-  // Goal: intensity introduction, race-pace exposure, peak pre-residency volume.
+  // PHASE 2: BUILD BLOCK 2 (Weeks 5–7, Jun 1–21)
+  // Goal: progressive volume before residency, double sessions, aerobic expansion.
   // ═══════════════════════════════════════════════════════════════
   {
     weekNumber: 5,
@@ -231,40 +230,40 @@ export const TRAINING_PLAN: TrainingWeek[] = [
     endDate: "2026-06-07",
     phase: "build",
     isResidencyConstrained: false,
-    swimMinutes: 100,
-    bikeMinutes: 150,
-    runMinutes: 100,
-    strengthMinutes: 90,
-    swimMeters: 2300,
-    bikeMiles: 36,
-    runMiles: 11,
-    totalHours: 7.3,
-    focusAreas: ["Lactate threshold introduction", "Bike volume push", "Race nutrition on long ride"],
+    swimMinutes: 115,
+    bikeMinutes: 240,
+    runMinutes: 150,
+    strengthMinutes: 80,
+    swimMeters: 3300,
+    bikeMiles: 55,
+    runMiles: 9,
+    totalHours: 9.7,
+    focusAreas: ["Z2 swim progression 6–8×100m", "Trainer + road bike double", "Run/walk 3.5mi sessions"],
     keyWorkouts: [
       {
         sport: "swim",
-        label: "Threshold Intervals",
-        structure: "400yd warm-up → 6×100yd at T-pace (hard but sustainable) with 15sec rest → 4×50yd fast with 20sec rest → 200yd easy",
-        zone: "Z3–Z4 for the reps — race pace effort",
-        targetPacePer100yd: "2:10–2:30",
+        label: "Progressive Z2 Intervals",
+        structure: "200m warmup → 6–8×100m Z2 with 20sec rest → 200m cooldown. Three sessions, each slightly longer.",
+        zone: "Z2 — pace should feel controlled and repeatable",
+        targetPacePer100yd: "2:20–2:45",
       },
       {
         sport: "bike",
-        label: "First Long Ride",
-        structure: "50mi at steady Z2–Z3, flat to rolling terrain. Take a gel every 30min starting at mile 15.",
-        zone: "Z2–Z3 — challenging but you could speak in sentences",
-        targetSpeed: "15–17mph",
+        label: "Trainer + Long Road",
+        structure: "Two 75min trainer sessions (Tue PM, Thu AM) + Saturday long road ride 90min.",
+        zone: "Z1–Z2 — cadence 85–95rpm on trainer",
+        targetSpeed: "14–16mph",
       },
       {
         sport: "run",
-        label: "Long Run + Tempo Finish",
-        structure: "8mi with last 2mi at tempo effort",
-        zone: "Z2 for 6mi → Z3–Z4 for final 2mi",
-        targetPace: "9:30–10:30/mi easy, 8:30–9:00/mi tempo",
+        label: "Run/Walk 3.5mi",
+        structure: "Three sessions at 3.5mi (Mon, Tue PM, Wed PM). Walk at 140bpm, resume at 130bpm.",
+        zone: "Z1–Z2 — same HR protocol as weeks 2–4",
+        targetPace: "HR 130–140bpm",
       },
     ],
-    strengthWork: BUILD_STRENGTH,
-    notes: "Strength phase shifts to Build — heavier loads, fewer reps. Long ride nutrition test: gel every 30min. Find what works for your gut now, not on race day. Your long ride pace is 15–17mph — don't push harder.",
+    strengthWork: BASE_STRENGTH,
+    notes: "Week 5 matches week 3 volume — you've earned this load. The 3.5mi run/walk sessions are your longest runs yet. Keep the HR discipline: any session where you ignore the walk cues is a junk mile that builds fatigue without aerobic adaptation.",
   },
   {
     weekNumber: 6,
@@ -1083,6 +1082,127 @@ export function generateWeekSchedule(week: TrainingWeek): DaySchedule[] {
   // Helpers
   const r = (n: number) => Math.round(n);
   const hasStrength = strengthWork.frequency > 0;
+
+  // ── Week-specific explicit schedules (pre-residency double sessions) ──────
+
+  if (week.weekNumber === 2) {
+    return [
+      { day: "Mon", sessions: [
+        s("bike", "Easy road ride", 95, { distance: 23, distanceUnit: "mi", note: "7am · Z1 — just spin, keep HR low" }),
+      ]},
+      { day: "Tue", sessions: [
+        s("run", "Run/Walk 1.5mi", 25, { distance: 1.5, distanceUnit: "mi", note: "7am · walk at 140bpm, resume at 130bpm. Z1-Z2." }),
+        s("strength", "Upper Body", 40, { note: "6pm · Chest, back, shoulders, arms" }),
+      ]},
+      { day: "Wed", sessions: [
+        s("swim", "Swim drills + easy laps", 45, { distance: 1000, distanceUnit: "m", note: "7am · drills + easy Z2 laps" }),
+        s("strength", "Lower Body", 40, { note: "6pm · Squats, lunges, hamstrings, calves" }),
+      ]},
+      { day: "Thu", sessions: [
+        s("bike", "Trainer ride", 50, { distance: 13, distanceUnit: "mi", note: "7am · Z1-Z2 · easy cadence work" }),
+        s("run", "Run/Walk 1.5mi", 25, { distance: 1.5, distanceUnit: "mi", note: "6pm · Maffetone walk/run — same HR rules" }),
+      ]},
+      { day: "Fri", sessions: [
+        s("swim", "Swim endurance", 50, { distance: 1600, distanceUnit: "m", note: "7am · build to continuous Z2 laps" }),
+        s("strength", "Core + Full Body", 40, { note: "6pm · Core, compound lifts, mobility" }),
+      ]},
+      { day: "Sat", sessions: [
+        s("bike", "Long ride", 120, { distance: 23, distanceUnit: "mi", note: "7am · Z1-Z2. Build to a stop-free 25mi over weeks." }),
+      ]},
+      { day: "Sun", sessions: [
+        s("rest", "Rest / Active Recovery", 0, { note: "Walk, stretch, foam roll" }),
+      ]},
+    ];
+  }
+
+  if (week.weekNumber === 3) {
+    return [
+      { day: "Mon", sessions: [
+        s("bike", "Easy road ride", 95, { distance: 25, distanceUnit: "mi", note: "7am · Z1 — comfortable aerobic spin" }),
+      ]},
+      { day: "Tue", sessions: [
+        s("run", "Run/Walk 3mi", 40, { distance: 3, distanceUnit: "mi", note: "7am · Maffetone walk/run. Z1-Z2." }),
+        s("strength", "Upper Body", 40, { note: "6pm · Chest, back, shoulders, arms" }),
+      ]},
+      { day: "Wed", sessions: [
+        s("swim", "Swim drills + laps", 50, { distance: 1200, distanceUnit: "m", note: "7am · drills + continuous Z2" }),
+        s("strength", "Lower Body", 40, { note: "6pm · Squats, lunges, hamstrings, calves" }),
+      ]},
+      { day: "Thu", sessions: [
+        s("bike", "Trainer ride", 55, { distance: 15, distanceUnit: "mi", note: "7am · Z2 steady cadence" }),
+        s("run", "Run/Walk 3mi", 40, { distance: 3, distanceUnit: "mi", note: "6pm · Maffetone walk/run" }),
+      ]},
+      { day: "Fri", sessions: [
+        s("swim", "Swim endurance", 55, { distance: 1600, distanceUnit: "m", note: "7am · continuous Z2, build confidence" }),
+        s("strength", "Core + Full Body", 40, { note: "6pm · Core, compound lifts, mobility" }),
+      ]},
+      { day: "Sat", sessions: [
+        s("bike", "Long ride", 135, { distance: 30, distanceUnit: "mi", note: "7am · Z1-Z2. Target 17–18mph average." }),
+      ]},
+      { day: "Sun", sessions: [
+        s("run", "Long run/walk", 55, { distance: 3, distanceUnit: "mi", note: "7am · Maffetone HR rules. Easy effort." }),
+      ]},
+    ];
+  }
+
+  if (week.weekNumber === 4) {
+    // Recovery week — reduced volume, maintain frequency
+    return [
+      { day: "Mon", sessions: [
+        s("bike", "Easy recovery ride", 60, { distance: 15, distanceUnit: "mi", note: "7am · Z1 only. Flush legs." }),
+      ]},
+      { day: "Tue", sessions: [
+        s("run", "Easy run/walk 2mi", 30, { distance: 2, distanceUnit: "mi", note: "7am · HR-gated, very easy" }),
+        s("strength", "Light Upper Body", 30, { note: "6pm · Reduced weight, higher reps. Maintenance only." }),
+      ]},
+      { day: "Wed", sessions: [
+        s("swim", "Easy swim", 40, { distance: 1000, distanceUnit: "m", note: "7am · Z1-Z2 only. Feel good in water." }),
+      ]},
+      { day: "Thu", sessions: [
+        s("bike", "Trainer spin", 40, { distance: 10, distanceUnit: "mi", note: "7am · easy cadence, no effort" }),
+        s("strength", "Core + Mobility", 30, { note: "6pm · Core and mobility work only" }),
+      ]},
+      { day: "Fri", sessions: [
+        s("swim", "Short swim", 35, { distance: 900, distanceUnit: "m", note: "7am · drills and easy laps" }),
+      ]},
+      { day: "Sat", sessions: [
+        s("bike", "Moderate ride", 75, { distance: 20, distanceUnit: "mi", note: "7am · Z1-Z2. No pushing today." }),
+      ]},
+      { day: "Sun", sessions: [
+        s("rest", "Rest / Active Recovery", 0, { note: "Full rest. Sleep, eat, recover." }),
+      ]},
+    ];
+  }
+
+  if (week.weekNumber === 5) {
+    return [
+      { day: "Mon", sessions: [
+        s("bike", "Road ride", 100, { distance: 28, distanceUnit: "mi", note: "7am · Z1-Z2. Build on week 3." }),
+      ]},
+      { day: "Tue", sessions: [
+        s("run", "Run/Walk 3mi", 40, { distance: 3, distanceUnit: "mi", note: "7am · Maffetone walk/run. Z1-Z2." }),
+        s("strength", "Upper Body", 40, { note: "6pm · Chest, back, shoulders, arms" }),
+      ]},
+      { day: "Wed", sessions: [
+        s("swim", "Swim drills + laps", 55, { distance: 1400, distanceUnit: "m", note: "7am · drills + continuous Z2" }),
+        s("strength", "Lower Body", 40, { note: "6pm · Squats, lunges, hamstrings, calves" }),
+      ]},
+      { day: "Thu", sessions: [
+        s("bike", "Trainer ride", 60, { distance: 17, distanceUnit: "mi", note: "7am · Z2 steady effort" }),
+        s("run", "Run/Walk 3mi", 40, { distance: 3, distanceUnit: "mi", note: "6pm · Maffetone walk/run" }),
+      ]},
+      { day: "Fri", sessions: [
+        s("swim", "Swim endurance", 60, { distance: 1900, distanceUnit: "m", note: "7am · continuous Z2 laps" }),
+        s("strength", "Core + Full Body", 40, { note: "6pm · Core, compound lifts, mobility" }),
+      ]},
+      { day: "Sat", sessions: [
+        s("bike", "Long ride", 150, { distance: 33, distanceUnit: "mi", note: "7am · Z1-Z2. Push toward 35mi stop-free." }),
+      ]},
+      { day: "Sun", sessions: [
+        s("run", "Long run/walk", 55, { distance: 3, distanceUnit: "mi", note: "7am · Maffetone HR rules. Building week." }),
+      ]},
+    ];
+  }
 
   if (phase === "race") {
     return [
